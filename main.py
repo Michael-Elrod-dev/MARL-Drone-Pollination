@@ -3,9 +3,9 @@ import numpy as np
 import random
 
 # Constants
-FIELD_SIZE = 800
-NUM_FLOWERS = 4000
-VISION_RADIUS = 110
+FIELD_SIZE = 1100
+NUM_FLOWERS = 4500
+VISION_RADIUS = 50
 POLLINATION_RADIUS = 25
 DRONE_SPEED = 2
 MIN_CLUSTER_POINTS = 3  # Minimum number of points to form a cluster
@@ -22,11 +22,11 @@ class Flower:
         self.clustered = False
 
 flowers = [Flower() for _ in range(NUM_FLOWERS)]
-clusters = []  # List to store clusters
+clusters = []
 
 class Drone:
-    def __init__(self):
-        self.position = np.random.rand(2) * FIELD_SIZE
+    def __init__(self, start_x):
+        self.position = np.array([start_x, FIELD_SIZE - 1])  # Position at the bottom
         self.direction = np.random.randn(2)
         self.direction /= np.linalg.norm(self.direction)
 
@@ -54,8 +54,10 @@ class Drone:
                 flower.clustered = self.check_cluster(flower)
 
     def check_cluster(self, flower):
-        if any(np.linalg.norm(flower.position - c['core'].position) < 2 * POLLINATION_RADIUS for c in clusters):
-            return False  # This flower is within an existing cluster's radius
+        distance_threshold = 1.5 * POLLINATION_RADIUS
+
+        if any(np.linalg.norm(flower.position - c['core'].position) < distance_threshold for c in clusters):
+            return False  # Flower is within the radius of an existing cluster
         cluster_members = [f for f in flowers if np.linalg.norm(f.position - flower.position) <= POLLINATION_RADIUS]
         if len(cluster_members) >= MIN_CLUSTER_POINTS:
             clusters.append({'core': flower, 'members': cluster_members})
@@ -78,20 +80,41 @@ class Drone:
         pygame.draw.circle(screen, (0, 0, 255), (int(self.position[0]), int(self.position[1])), VISION_RADIUS, 1)
         pygame.draw.circle(screen, (0, 255, 0), (int(self.position[0]), int(self.position[1])), POLLINATION_RADIUS, 1)
 
-drone = Drone()
+# Drones in a line at the bottom
+drones = [Drone(FIELD_SIZE / 6 * i) for i in range(6)]
 
+# Initialize font
+pygame.font.init()  # Initialize the font module
+font = pygame.font.SysFont(None, 24)  # Create a font object
 running = True
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
 
-    drone.move()
-    drone.scan_and_cluster()
+    for drone in drones:
+        drone.move()
+        drone.scan_and_cluster()
 
-    screen.fill((255, 255, 255))  
-    drone.draw()  
+    screen.fill((255, 255, 255))
+    for drone in drones:
+        drone.draw()
 
-    pygame.display.flip()  
+    # Calculate counters and percentages
+    flowers_seen = sum(flower.seen for flower in flowers)
+    flowers_clusters = sum(flower.clustered for flower in flowers)
+    seen_percentage = (flowers_seen / NUM_FLOWERS) * 100
+    clustered_percentage = (flowers_clusters / flowers_seen) * 100
+
+    # Render counters and draw them on the screen
+    total_text = font.render(f'Total Flowers: {NUM_FLOWERS}', True, (0, 0, 0))
+    seen_text = font.render(f'Flowers Seen: {flowers_seen} : {seen_percentage:.1f}%', True, (0, 0, 0))
+    clustered_text = font.render(f'Flowers Clusters: {flowers_clusters}', True, (0, 0, 0))
+
+    screen.blit(total_text, (10, 10))
+    screen.blit(seen_text, (10, 30))
+    screen.blit(clustered_text, (10, 50))
+
+    pygame.display.flip()
 
 pygame.quit()
